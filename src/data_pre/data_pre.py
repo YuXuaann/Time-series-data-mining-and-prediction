@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 data_path = r'../../data/G_Data0001.csv'
+write_data_path = r'../Autoformer-main/data'
 data = pd.read_csv(data_path)
 data['CreateDate'] = pd.to_datetime(data['CreateDate'])
 data['BDiff'] = data['BTotal'].diff()
@@ -24,11 +25,21 @@ def show(target, name):
     plt.show()
 
 
+print(f'before resampled, length of is', len(data))
+resampled_data = data.resample('d').mean().rolling(window=3).mean()  # 使用移动平均重采样到天，减少异常值的影响
+resampled_data.interpolate(method='linear', inplace=True)  # 使用插值法填充缺失值
+resampled_data = resampled_data.fillna(0)
+# print(resampled_data)
+resampled_data = resampled_data[2:]
+# resampled_data.rename_axis('date')
+resampled_data.reset_index(inplace=True)
+resampled_data.rename(columns={'CreateDate': 'date'}, inplace=True)
+print(resampled_data)
+resampled_data.to_csv(write_data_path + '/' + 'resample.csv', index=False)
+print(f'after resampled,  length of is', len(resampled_data))
+
+
 def resample(target):
-    print(f'before resampled, length of {target} is', len(data[target]))
-    resampled_data = data.resample('d').mean().rolling(window=3).mean()  # 使用移动平均重采样到天，减少异常值的影响
-    resampled_data.interpolate(method='linear', inplace=True)  # 使用插值法填充缺失值
-    print(f'after resampled,  length of {target} is', len(resampled_data[target]))
     plt.plot(resampled_data.index, resampled_data[target], color='green')
     plt.xlabel('time')
     plt.ylabel(target)
