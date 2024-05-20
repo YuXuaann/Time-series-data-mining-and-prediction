@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 data_path = r'../Autoformer-main/data/resample.csv'
 predict_path = r'../Autoformer-main/results/test_Autoformer_custom_ftMS_sl16_ll10_pl6_dm64_nh8_el2_dl1_df512_fc1_ebtimeF_dtTrue_test_1/'
+# predict_path = r'../Autoformer-main/results/test_Autoformer_custom_ftMS_sl10_ll10_pl10_dm64_nh8_el2_dl1_df512_fc1_ebtimeF_dtTrue_test_1/'
 predict_data_path = predict_path + '/' + 'pred.npy'
 true_data_path = predict_path + '/' + 'true.npy'
 paths = [predict_data_path, true_data_path]
@@ -27,21 +28,23 @@ for x in true_data:
     true_data_sum.append(sum)
 
 
-# print(len(predict_data_sum))
+print(predict_data)
 print(true_data_sum)
 print(predict_data_sum)
 
-plt.plot(data['date'], data['BTotal'])
+# plt.plot(data['date'][:154], data['BFlow'][:154])
+plt.plot(data['date'], data['BFlow'])
 plt.xlabel('time')
 plt.ylabel('BTotal')
 plt.title('BTotal')
 plt.show()
 
-plt.plot(data['date'][:154], true_data_sum)
-plt.plot(data['date'][:154], predict_data_sum)
+plt.plot(data['date'][:154], true_data_sum, label='true')
+plt.plot(data['date'][:154], predict_data_sum, label='predict')
 plt.xlabel('time')
 plt.ylabel('BTotal')
 plt.title('BTotal')
+plt.legend(loc='lower right')
 plt.show()
 
 # cnt = 0

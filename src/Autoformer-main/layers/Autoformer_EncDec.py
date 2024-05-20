@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
+# 层归一化层，专门为季节性部分设计
 class my_Layernorm(nn.Module):
     """
     Special designed layernorm for the seasonal part
@@ -17,6 +17,7 @@ class my_Layernorm(nn.Module):
         return x_hat - bias
 
 
+# 移动平均（Moving Average）模块，用于突出时间序列的趋势部分
 class moving_avg(nn.Module):
     """
     Moving average block to highlight the trend of time series
@@ -35,7 +36,7 @@ class moving_avg(nn.Module):
         x = x.permute(0, 2, 1)
         return x
 
-
+# 序列分解模块，用于将时间序列分解为趋势部分和残差部分
 class series_decomp(nn.Module):
     """
     Series decomposition block
@@ -49,7 +50,7 @@ class series_decomp(nn.Module):
         res = x - moving_mean
         return res, moving_mean
 
-
+# 编码器层，采用渐进分解架构
 class EncoderLayer(nn.Module):
     """
     Autoformer encoder layer with the progressive decomposition architecture
@@ -78,7 +79,7 @@ class EncoderLayer(nn.Module):
         res, _ = self.decomp2(x + y)
         return res, attn
 
-
+# 编码器
 class Encoder(nn.Module):
     """
     Autoformer encoder
@@ -108,7 +109,7 @@ class Encoder(nn.Module):
 
         return x, attns
 
-
+# 解码器层，采用渐进分解架构
 class DecoderLayer(nn.Module):
     """
     Autoformer decoder layer with the progressive decomposition architecture
@@ -149,7 +150,7 @@ class DecoderLayer(nn.Module):
         residual_trend = self.projection(residual_trend.permute(0, 2, 1)).transpose(1, 2)
         return x, residual_trend
 
-
+# 解码器
 class Decoder(nn.Module):
     """
     Autoformer encoder

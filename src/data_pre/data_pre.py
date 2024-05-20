@@ -25,7 +25,7 @@ def show(target, name):
     plt.show()
 
 
-print(f'before resampled, length of is', len(data))
+print(f'before resampled, length is', len(data))
 resampled_data = data.resample('d').mean().rolling(window=3).mean()  # 使用移动平均重采样到天，减少异常值的影响
 resampled_data.interpolate(method='linear', inplace=True)  # 使用插值法填充缺失值
 resampled_data = resampled_data.fillna(0)
@@ -36,7 +36,7 @@ resampled_data.reset_index(inplace=True)
 resampled_data.rename(columns={'CreateDate': 'date'}, inplace=True)
 print(resampled_data)
 resampled_data.to_csv(write_data_path + '/' + 'resample.csv', index=False)
-print(f'after resampled,  length of is', len(resampled_data))
+print(f'after resampled,  length is', len(resampled_data))
 
 
 def resample(target):
