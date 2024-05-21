@@ -1,91 +1,108 @@
+import matplotlib
 import pandas as pd
 # finalize model and make a prediction for monthly births with xgboost
-from numpy import asarray
-from pandas import read_csv
-from pandas import DataFrame
-from pandas import concat
-from xgboost import XGBRegressor
-
-# forecast monthly births with xgboost
-from numpy import asarray
-from pandas import read_csv
-from pandas import DataFrame
-from pandas import concat
-from sklearn.metrics import mean_absolute_error
-from xgboost import XGBRegressor
-from matplotlib import pyplot
-
-# 将时间序列数据转换为监督学习数据集
-def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
-	n_vars = 1 if type(data) is list else data.shape[1]
-	df = DataFrame(data)
-	cols = list()
-	# 输入序列 (t-n, ... t-1)
-	for i in range(n_in, 0, -1):
-		cols.append(df.shift(i))
-	# 预测序列 (t, t+1, ... t+n)
-	for i in range(0, n_out):
-		cols.append(df.shift(-i))
-	# 整合在一起
-	agg = concat(cols, axis=1)
-	# 删除带有 NaN 值的行
-	if dropnan:
-		agg.dropna(inplace=True)
-	return agg.values
-
-# 将单变量数据集拆分为训练集/测试集
-def train_test_split(data, n_test):
-	return data[:-n_test, :], data[-n_test:, :]
-
-# 拟合 xgboost 模型并进行单步预测
-def xgboost_forecast(train, testX):
-	# 将列表转换为数组
-	train = asarray(train)
-	# 拆分为输入和输出列
-	trainX, trainy = train[:, :-1], train[:, -1]
-	# 拟合模型
-	model = XGBRegressor(objective='reg:squarederror', n_estimators=1000)
-	model.fit(trainX, trainy)
-	# 进行一步预测
-	yhat = model.predict(asarray([testX]))
-	return yhat[0]
-
-# 针对单变量数据的逐步前向验证
-def walk_forward_validation(data, n_test):
-	predictions = list()
-	# 拆分数据集
-	train, test = train_test_split(data, n_test)
-	# 使用训练数据集初始化历史数据
-	history = [x for x in train]
-	# 遍历测试集中的每个时间步
-	for i in range(len(test)):
-		# 将测试行拆分为输入和输出列
-		testX, testy = test[i, :-1], test[i, -1]
-		# 在历史数据上拟合模型并进行预测
-		yhat = xgboost_forecast(history, testX)
-		# 将预测结果存储在预测列表中
-		predictions.append(yhat)
-		# 将实际观察结果添加到历史数据中以备下一次循环使用
-		history.append(test[i])
-		# 汇总进度
-		print('>预期=%.1f, 预测=%.1f' % (testy, yhat))
-	# 估计预测误差
-	error = mean_absolute_error(test[:, -1], predictions)
-	return error, test[:, -1], predictions
-
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+matplotlib.rcParams['font.sans-serif'] = ['SimHei']  # 指定默认字体为黑体
+matplotlib.rcParams['axes.unicode_minus'] = False  # 解决负号'-'显示为方块的问题
 # 加载数据集
-series = read_csv('./data/G_Data0001.csv', header=0, index_col=0)
-print(series.columns)
-series['Err'] = series['Err'].fillna(0)
-series['Alarm'] = series['Alarm'].fillna(0)
-values = series[['GTotal', 'BTotal', 'GFlow', 'BFlow', 'T', 'Pa','Alarm']].values
-# 将时间序列数据转换为监督学习数据
-data = series_to_supervised(values, n_in=6)
-# 评估
-mae, y, yhat = walk_forward_validation(data, 12)
-print('MAE: %.3f' % mae)
-# 绘制预期 vs 预测图
-pyplot.plot(y, label='预期')
-pyplot.plot(yhat, label='预测')
-pyplot.legend()
-pyplot.show()
+data = pd.read_csv('./data/G_Data0001.csv')
+data['CreateDate'] = pd.to_datetime(data['CreateDate'])
+data.set_index('CreateDate', inplace=True)
+
+# 生成正样本
+L = 25
+alarm_points = data[data['Alarm'] == 400]
+positive_samples = pd.DataFrame()
+for index, row in alarm_points.iterrows():
+    start_index = data.index.get_loc(index) - L
+    if start_index >= 0:
+        sample = data.iloc[start_index:data.index.get_loc(index)].copy()
+        sample['Label'] = 1
+        positive_samples = positive_samples._append(sample, ignore_index=True)
+
+# 生成负样本
+negative_samples = pd.DataFrame()
+for _ in range(len(positive_samples) // 10):
+    random_index = np.random.randint(0, len(data))
+    sample = data.iloc[random_index:random_index + L].copy()
+    if sample['Alarm'].sum() == 0:
+        sample['Label'] = 0  # 标记为正常
+        negative_samples = negative_samples._append(sample, ignore_index=True)
+
+# 合并正负样本
+samples = pd.concat([positive_samples, negative_samples])
+
+# 分离特征和目标变量
+X = samples.drop('Label', axis=1)
+y = samples['Label']
+
+# 分割训练集和测试集
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+
+# 训练XGBoost分类器
+model = XGBClassifier(n_estimators=100)
+model.fit(X_train, y_train)
+
+# 在测试集上进行预测
+y_pred = model.predict(X_test)
+
+# 评估模型
+accuracy = accuracy_score(y_test, y_pred)
+conf_matrix = confusion_matrix(y_test, y_pred)
+print(f'准确率: {accuracy}')
+print(f'混淆矩阵:\n{conf_matrix}')
+
+# 打印测试集的预测结果和实际结果
+for i in range(len(X_test)):
+    print(f'测试数据 {i+1}:')
+    print(f'特征: {X_test.iloc[i].values}')
+    print(f'预测的Alarm状态: {"故障" if y_pred[i] == 1 else "正常"}')
+    print(f'实际的Alarm状态: {"故障" if y_test.iloc[i] == 1 else "正常"}\n')
+labels = ['预测故障', '预测正常', '实际故障', '实际正常']
+sizes = [
+    (y_pred == 1).sum(),  # 预测故障
+    (y_pred == 0).sum(),  # 预测正常
+    (y_test == 1).sum(),  # 实际故障
+    (y_test == 0).sum()  # 实际正常
+]
+colors = ['#ff9999', '#66b3ff', '#99ff99', '#ffcc99']
+explode = (0.1, 0, 0.1, 0)  # 突出显示“故障”
+
+fig1, ax1 = plt.subplots()
+ax1.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%',
+        shadow=True, startangle=90)
+ax1.axis('equal')  # 确保饼状图是圆形的
+plt.title('预测与实际故障状态分布')
+plt.show()
+
+# 进行多次迭代，生成准确率折线图
+iterations = 20  # 迭代次数
+accuracies = []
+
+for i in range(iterations):
+    # 分割训练集和测试集
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y)
+
+    # 训练XGBoost分类器
+    model = XGBClassifier(n_estimators=100)
+    model.fit(X_train, y_train)
+
+    # 在测试集上进行预测
+    y_pred = model.predict(X_test)
+
+    # 评估模型
+    accuracy = accuracy_score(y_test, y_pred)
+    accuracies.append(accuracy)
+
+plt.figure(figsize=(20, 5))
+sns.lineplot(x=range(1, iterations + 1), y=accuracies)
+plt.title('准确率变化趋势')
+plt.xlabel('迭代次数')
+plt.ylabel('准确率')
+plt.show()
